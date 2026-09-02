@@ -94,7 +94,7 @@
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
 import {
-  getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, signOut, onAuthStateChanged
+  getAuth, signInAnonymously, signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
 import {
   getFirestore, collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot
@@ -116,13 +116,10 @@ const firebaseConfig = {
 const fbApp = initializeApp(firebaseConfig);
 const auth = getAuth(fbApp);
 const db = getFirestore(fbApp);
-const provider = new GoogleAuthProvider();
-// Nota: se sacó la restricción a @iosefcaro.org porque el Workspace del
-// colegio bloquea esta app por no estar "verificada" ante Google (error
-// "Acceso bloqueado"). Si en el futuro un admin de Workspace marca esta
-// app como confiable, se puede volver a activar descomentando esto:
-// const DOMINIO_PERMITIDO = 'iosefcaro.org';
-// provider.setCustomParameters({ hd: DOMINIO_PERMITIDO });
+// Acceso simple: mail institucional + contraseña compartida (sin depender
+// de Google ni del Workspace de la escuela, que bloqueaba el login).
+const CLAVE_ACCESO = 'MOLDES2440';
+const LS_EMAIL = 'calendario_email';
 
 // TODO: pegá acá tu VAPID key (Firebase console > Configuración del proyecto >
 // Cloud Messaging > Certificados push web > Generar par de claves).
@@ -165,7 +162,13 @@ onAuthStateChanged(auth, async (user) => {
     render();
     return;
   }
-  const email = (user.email || '').toLowerCase();
+  const email = (localStorage.getItem(LS_EMAIL) || '').toLowerCase().trim();
+  if(!email){
+    // Sesión anónima activa pero sin mail guardado (ej. se borró el localStorage):
+    // pedimos que vuelva a entrar.
+    await signOut(auth);
+    return;
+  }
   STATE.user = user; STATE.email = email;
 
   try{
@@ -187,22 +190,27 @@ onAuthStateChanged(auth, async (user) => {
   render();
 });
 
-getRedirectResult(auth).catch((err) => {
-  if(err && err.code && err.code !== 'auth/no-auth-event'){
-    notice = { kind:'err', text:'No se pudo iniciar sesión: '+err.message };
-    render();
-  }
-});
-
-function entrar(){
+function entrar(email, clave){
   const btn = document.getElementById('btn-login');
-  if(btn){ btn.disabled = true; btn.textContent = 'Abriendo Google…'; }
-  signInWithRedirect(auth, provider).catch((err) => {
-    notice = { kind:'err', text: 'No se pudo iniciar sesión ('+(err.code||'error')+'): '+err.message };
+  if(clave !== CLAVE_ACCESO){
+    notice = { kind:'err', text:'Contraseña incorrecta.' };
+    render();
+    return;
+  }
+  if(!email || email.indexOf('@') === -1){
+    notice = { kind:'err', text:'Poné tu mail institucional completo.' };
+    render();
+    return;
+  }
+  if(btn){ btn.disabled = true; btn.textContent = 'Entrando…'; }
+  localStorage.setItem(LS_EMAIL, email.toLowerCase().trim());
+  signInAnonymously(auth).catch((err) => {
+    notice = { kind:'err', text: 'No se pudo entrar ('+(err.code||'error')+'): '+err.message };
+    if(btn){ btn.disabled = false; btn.textContent = 'Entrar'; }
     render();
   });
 }
-function salir(){ signOut(auth); }
+function salir(){ localStorage.removeItem(LS_EMAIL); signOut(auth); }
 
 /* ---------- notificaciones push ---------- */
 let notifState = 'default'; // default | activando | activado | error
@@ -291,13 +299,16 @@ function render(){
     app.innerHTML = '<div class="hero">' +
         '<p class="kicker">Agenda y solicitud de espacios</p>' +
         '<h1>Todo lo que pasa en el colegio,<br>en un solo lugar</h1>' +
-        '<p>Pedí una fecha, seguí el estado de tu solicitud y mirá el calendario confirmado, todo desde tu cuenta de Google.</p>' +
-        '<button class="btn-google" id="btn-login">' +
-          '<svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.71v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.61z"/><path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.19l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.98v2.33A9 9 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.95 10.69A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.16.28-1.69V4.98H.98A9 9 0 0 0 0 9c0 1.45.35 2.83.98 4.02z"/><path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .98 4.98l2.97 2.33C4.66 5.17 6.65 3.58 9 3.58z"/></svg>' +
-          'Iniciar sesión con Google' +
-        '</button>' +
+        '<p>Pedí una fecha, seguí el estado de tu solicitud y mirá el calendario confirmado.</p>' +
+      '</div>' +
+      '<div class="card" style="margin-top:16px;">' +
+        '<div class="field"><label>Mail institucional</label><input type="email" id="login-email" placeholder="nombre@iosefcaro.org" value="'+esc(localStorage.getItem(LS_EMAIL)||'')+'"></div>' +
+        '<div class="field"><label>Contraseña</label><input type="password" id="login-clave" placeholder="••••••••"></div>' +
+        '<button class="btn primary" id="btn-login" style="width:100%;">Entrar</button>' +
       '</div>';
-    document.getElementById('btn-login').onclick = entrar;
+    const disparar = () => entrar(document.getElementById('login-email').value.trim(), document.getElementById('login-clave').value);
+    document.getElementById('btn-login').onclick = disparar;
+    document.getElementById('login-clave').addEventListener('keydown', (e) => { if(e.key==='Enter') disparar(); });
     return;
   }
 
