@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calendario escolar</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2F5233">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@600&family=Inter:wght@400;500;600;700&display=swap');
+  :root{
+    --paper:#F3EFE4; --card:#FFFFFF; --ink:#20261F; --ink-soft:#5B6157; --line:#D9D2BE;
+    --review:#3E5C76; --review-bg:#E7ECF1; --pending:#A9762B; --pending-bg:#F3E9D3;
+    --approved:#2F5233; --approved-bg:#E3E9DE; --rejected:#9C3B2E; --rejected-bg:#F1E1DC;
+  }
+  *{ box-sizing:border-box; }
+  body{ margin:0; font-family:'Inter',sans-serif; background:var(--paper); color:var(--ink); padding:16px 14px 40px; max-width:520px; margin:0 auto; }
+  h1{ font-family:'Source Serif 4',serif; font-size:22px; margin:0 0 2px; }
+  .eyebrow{ font-size:12px; color:var(--ink-soft); margin:0 0 2px; }
+  .rolebadge{ font-size:12px; color:var(--ink-soft); margin:8px 0 4px; display:flex; justify-content:space-between; align-items:center; }
+  .tabs{ display:flex; gap:2px; overflow-x:auto; border-bottom:1px solid var(--line); margin:12px 0 16px; }
+  .tab{ font-size:13px; font-weight:600; color:var(--ink-soft); background:none; border:none; padding:8px 10px; white-space:nowrap; border-bottom:2px solid transparent; }
+  .tab.active{ color:var(--ink); border-color:var(--approved); }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:10px; padding:14px; margin-bottom:14px; }
+  .btn{ font-family:'Inter',sans-serif; font-size:13.5px; font-weight:600; padding:9px 13px; border-radius:7px; border:1px solid var(--line); background:var(--card); color:var(--ink); cursor:pointer; }
+  .btn.primary{ background:var(--approved); border-color:var(--approved); color:#fff; }
+  .btn.danger{ background:var(--rejected); border-color:var(--rejected); color:#fff; }
+  .btn.ghost{ background:transparent; border-color:transparent; }
+  .field{ margin-bottom:10px; }
+  .field label{ display:block; font-size:12px; font-weight:600; color:var(--ink-soft); margin-bottom:4px; }
+  input,select,textarea{ width:100%; font-family:'Inter',sans-serif; font-size:14px; padding:9px; border-radius:7px; border:1px solid var(--line); background:#fff; }
+  textarea{ min-height:56px; }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .badge{ font-size:11px; font-weight:700; padding:3px 8px; border-radius:20px; }
+  .badge.revision{ background:var(--review-bg); color:var(--review); }
+  .badge.aprobacion{ background:var(--pending-bg); color:var(--pending); }
+  .badge.aprobado{ background:var(--approved-bg); color:var(--approved); }
+  .badge.rechazado{ background:var(--rejected-bg); color:var(--rejected); }
+  .item{ padding:10px 0; border-bottom:1px solid var(--line); }
+  .item:last-child{ border-bottom:none; }
+  .meta{ font-size:12px; color:var(--ink-soft); margin-top:3px; }
+  .empty{ text-align:center; padding:24px 10px; color:var(--ink-soft); font-size:13px; }
+  .notice{ font-size:13px; padding:9px 11px; border-radius:7px; margin-bottom:12px; }
+  .notice.ok{ background:var(--approved-bg); color:var(--approved); }
+  .notice.warn{ background:var(--pending-bg); color:var(--pending); }
+  .notice.err{ background:var(--rejected-bg); color:var(--rejected); }
+  .inline{ background:var(--paper); border:1px solid var(--line); border-radius:8px; padding:10px; margin-top:8px; }
+  .row-actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
+  .grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:8px; overflow:hidden; }
+  .dow{ background:#fff; font-size:10px; font-weight:700; color:var(--ink-soft); text-align:center; padding:5px 0; }
+  .cell{ background:#fff; min-height:44px; padding:3px; font-size:10px; }
+  .cell.empty2{ background:var(--paper); }
+  .daynum{ font-size:11px; font-weight:600; color:var(--ink-soft); }
+  .dot{ background:var(--approved-bg); color:var(--approved); border-radius:4px; padding:1px 3px; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .navrow{ display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; }
+  .navbtn{ background:#fff; border:1px solid var(--line); border-radius:7px; width:28px; height:28px; }
+  .msgbox{ font-family:monospace; font-size:12px; white-space:pre-wrap; background:var(--paper); border:1px solid var(--line); border-radius:8px; padding:10px; }
+  .center{ text-align:center; padding:60px 12px; }
+</style>
+</head>
+<body>
+  <p class="eyebrow">Calendario escolar</p>
+  <h1>Agenda y solicitud de espacios</h1>
+  <div id="app">Cargando…</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+import {
+  getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-auth.js";
+import {
+  getFirestore, collection, doc, getDoc, setDoc, addDoc, updateDoc, deleteDoc, onSnapshot
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+import {
+  getMessaging, getToken, onMessage
+} from "https://www.gstatic.com/firebasejs/12.18.0/firebase-messaging.js";
+
+// Config del proyecto de Firebase (no es un dato secreto, se usa así a propósito).
+const firebaseConfig = {
+  apiKey: "AIzaSyCCg3W3aRPiV5MWdeiXN43qYl6lVqcd7LQ",
+  authDomain: "calendario-institucional-1a58e.firebaseapp.com",
+  projectId: "calendario-institucional-1a58e",
+  storageBucket: "calendario-institucional-1a58e.firebasestorage.app",
+  messagingSenderId: "71725178168",
+  appId: "1:71725178168:web:8c6a2d9a12ee479eb9b5cd"
+};
+
+const fbApp = initializeApp(firebaseConfig);
+const auth = getAuth(fbApp);
+const db = getFirestore(fbApp);
+const provider = new GoogleAuthProvider();
+// TODO: si querés limitar el login solo a cuentas de la escuela, descomentá la
+// siguiente línea y poné el dominio (ej: "miescuela.edu.ar"). Si no, cualquiera
+// con cuenta de Google puede intentar entrar (igual el rol por defecto es "miembro").
+// provider.setCustomParameters({ hd: "tu-dominio-de-escuela.edu" });
+
+// TODO: pegá acá tu VAPID key (Firebase console > Configuración del proyecto >
+// Cloud Messaging > Certificados push web > Generar par de claves).
+const VAPID_KEY = "PEGAR_VAPID_KEY_ACA";
+
+const DEFAULT_PLACES = ['Auditorio','Patio','SUM','Biblioteca','Aula 1','Aula 2','Aula 3','Sala de profesores'];
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const DIAS_SEM = ['dom','lun','mar','mié','jue','vie','sáb'];
+const ROLE_LABEL = { miembro:'Miembro', revisor:'Revisor', aprobador:'Aprobador' };
+
+let STATE = { user:null, email:'', role:'miembro', places:DEFAULT_PLACES, events:[] };
+let view = 'calendario';
+let cursor = new Date();
+let notice = null;
+let ui = { openId:null, rejectId:null, editId:null, cancelReason:'' };
+let unsubEvents = null;
+
+function p(n){ return String(n).padStart(2,'0'); }
+function todayIso(){ const d=new Date(); return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate()); }
+function parseIso(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
+function fmtShort(iso){ const d=parseIso(iso); return DIAS_SEM[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1); }
+function fmtLong(iso){ const d=parseIso(iso); return DIAS_SEM[d.getDay()]+' '+d.getDate()+' de '+MESES[d.getMonth()]; }
+function esc(s){ return (s||'').toString().replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function seSuperponen(aIni, aFin, bIni, bFin){
+  if(!aIni || !bIni) return true;
+  const s1=aIni, e1=aFin||'23:59', s2=bIni, e2=bFin||'23:59';
+  return s1<e2 && s2<e1;
+}
+function buscarConflictos(fecha, lugar, horaInicio, horaFin, excludeId){
+  return STATE.events.filter(e => e.id!==excludeId && e.estado==='aprobado' && e.fecha===fecha && e.lugar===lugar &&
+    seSuperponen(horaInicio, horaFin, e.horaInicio, e.horaFin));
+}
+
+/* ---------- auth ---------- */
+onAuthStateChanged(auth, async (user) => {
+  if(!user){
+    STATE = { user:null, email:'', role:'miembro', places:DEFAULT_PLACES, events:[] };
+    if(unsubEvents){ unsubEvents(); unsubEvents=null; }
+    render();
+    return;
+  }
+  const email = (user.email || '').toLowerCase();
+  STATE.user = user; STATE.email = email;
+
+  try{
+    const rolSnap = await getDoc(doc(db,'roles', email));
+    STATE.role = rolSnap.exists() ? (rolSnap.data().rol || 'miembro') : 'miembro';
+  }catch(err){ STATE.role='miembro'; }
+
+  try{
+    const lugSnap = await getDoc(doc(db,'lugares','config'));
+    STATE.places = (lugSnap.exists() && lugSnap.data().lista && lugSnap.data().lista.length) ? lugSnap.data().lista : DEFAULT_PLACES;
+  }catch(err){ STATE.places = DEFAULT_PLACES; }
+
+  if(unsubEvents) unsubEvents();
+  unsubEvents = onSnapshot(collection(db,'eventos'), (snap) => {
+    STATE.events = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    render();
+  }, (err) => { notice={kind:'err', text:'No se pudo leer los eventos: '+err.message}; render(); });
+
+  render();
+});
+
+function entrar(){ signInWithPopup(auth, provider).catch(err => { notice={kind:'err', text:err.message}; render(); }); }
+function salir(){ signOut(auth); }
+
+/* ---------- notificaciones push ---------- */
+let notifState = 'default'; // default | activando | activado | error
+async function activarNotificaciones(){
+  if(!('Notification' in window) || !('serviceWorker' in navigator)){
+    notice = {kind:'err', text:'Este navegador no soporta notificaciones.'}; render(); return;
+  }
+  notifState = 'activando'; render();
+  try{
+    const permiso = await Notification.requestPermission();
+    if(permiso !== 'granted'){
+      notifState = 'default';
+      notice = {kind:'warn', text:'No diste permiso de notificaciones, así que no te van a llegar avisos.'};
+      render(); return;
+    }
+    const reg = await navigator.serviceWorker.register('sw.js');
+    const messaging = getMessaging(fbApp);
+    const token = await getToken(messaging, { vapidKey: VAPID_KEY, serviceWorkerRegistration: reg });
+    if(!token) throw new Error('No se pudo generar el token de notificaciones.');
+    await setDoc(doc(db,'tokens', token), { email: STATE.email, updatedAt: new Date().toISOString() });
+    notifState = 'activado';
+    notice = {kind:'ok', text:'Notificaciones activadas. Si hay novedades en el calendario, te va a llegar un aviso al celular.'};
+    onMessage(messaging, (payload) => {
+      const titulo = (payload.notification && payload.notification.title) || 'Calendario escolar';
+      const cuerpo = (payload.notification && payload.notification.body) || '';
+      notice = {kind:'ok', text: titulo + ': ' + cuerpo};
+      render();
+    });
+  }catch(err){
+    notifState = 'error';
+    notice = {kind:'err', text:'No se pudieron activar las notificaciones: ' + err.message};
+  }
+  render();
+}
+
+/* ---------- CRUD ---------- */
+async function crearSolicitud(payload){
+  const conflictos = buscarConflictos(payload.fecha, payload.lugar, payload.horaInicio, payload.horaFin, null);
+  await addDoc(collection(db,'eventos'), {
+    ...payload,
+    solicitadoPorEmail: STATE.email,
+    estado: 'revision',
+    notaRevision: '', motivoRechazo: '',
+    creadoEl: new Date().toISOString(), actualizadoEl: new Date().toISOString(),
+  });
+  return conflictos;
+}
+async function pasarAAprobacion(id, nota){
+  await updateDoc(doc(db,'eventos',id), { estado:'aprobacion', notaRevision: nota||'', actualizadoEl: new Date().toISOString() });
+}
+async function editarSolicitud(id, patch){
+  await updateDoc(doc(db,'eventos',id), { ...patch, actualizadoEl: new Date().toISOString() });
+}
+async function aprobarEvento(id){
+  const ev = STATE.events.find(e => e.id===id);
+  await updateDoc(doc(db,'eventos',id), { estado:'aprobado', actualizadoEl: new Date().toISOString() });
+  if(ev){
+    await setDoc(doc(db,'eventos_publicos',id), {
+      titulo: ev.titulo, fecha: ev.fecha, horaInicio: ev.horaInicio||'', horaFin: ev.horaFin||'', lugar: ev.lugar||''
+    });
+  }
+}
+async function rechazarEvento(id, motivo){
+  await updateDoc(doc(db,'eventos',id), { estado:'rechazado', motivoRechazo: motivo||'', actualizadoEl: new Date().toISOString() });
+}
+async function cancelarAprobado(id, motivo){
+  await updateDoc(doc(db,'eventos',id), { estado:'rechazado', motivoRechazo: motivo||'Cancelado', actualizadoEl: new Date().toISOString() });
+  try{ await deleteDoc(doc(db,'eventos_publicos',id)); }catch(err){}
+}
+
+/* ---------- vistas ---------- */
+function setView(v){ view=v; ui={openId:null,rejectId:null,editId:null,cancelReason:''}; render(); }
+
+function tabsFor(role){
+  const t = [{key:'calendario', label:'Calendario'}, {key:'solicitar', label:'Solicitar'}, {key:'mis', label:'Mis solicitudes'}];
+  if(role==='revisor') t.push({key:'revisar', label:'Por revisar'});
+  if(role==='aprobador') t.push({key:'aprobar', label:'Por aprobar'});
+  if(role==='revisor' || role==='aprobador') t.push({key:'recordatorio', label:'Recordatorio'});
+  return t;
+}
+
+function render(){
+  const app = document.getElementById('app');
+
+  if(!STATE.user){
+    app.innerHTML = '<div class="center"><p style="color:var(--ink-soft);font-size:14px;margin-bottom:16px;">Entrá con tu cuenta de Google del colegio para ver y pedir fechas.</p>' +
+      '<button class="btn primary" id="btn-login">Iniciar sesión con Google</button></div>';
+    document.getElementById('btn-login').onclick = entrar;
+    return;
+  }
+
+  let html = '';
+  html += '<div class="rolebadge"><span>Entraste como <b>'+ROLE_LABEL[STATE.role]+'</b> ('+esc(STATE.email)+')</span>' +
+    '<button class="btn ghost" id="btn-logout" style="padding:2px 6px;font-size:12px;">Salir</button></div>';
+  if(notifState !== 'activado'){
+    html += '<button class="btn" id="btn-activar-notif" style="margin-bottom:12px;width:100%;">🔔 Activar notificaciones en este celular</button>';
+  }
+  if(notice){ html += '<div class="notice '+notice.kind+'">'+esc(notice.text)+'</div>'; }
+  const tabs = tabsFor(STATE.role);
+  html += '<div class="tabs">' + tabs.map(t => '<button class="tab '+(view===t.key?'active':'')+'" data-view="'+t.key+'">'+t.label+'</button>').join('') + '</div>';
+
+  if(view==='calendario') html += renderCalendario();
+  else if(view==='solicitar') html += renderSolicitar();
+  else if(view==='mis') html += renderMis();
+  else if(view==='revisar') html += renderRevisar();
+  else if(view==='aprobar') html += renderAprobar();
+  else if(view==='recordatorio') html += renderRecordatorio();
+
+  app.innerHTML = html;
+  document.getElementById('btn-logout').onclick = salir;
+  const btnNotif = document.getElementById('btn-activar-notif');
+  if(btnNotif) btnNotif.onclick = activarNotificaciones;
+  app.querySelectorAll('[data-view]').forEach(b => b.onclick = () => setView(b.dataset.view));
+  wireDynamicHandlers();
+}
+
+function labelEstado(s){
+  return s==='revision' ? 'En revisión' : s==='aprobacion' ? 'Esperando aprobación' : s==='aprobado' ? 'Confirmado' : 'Rechazado';
+}
+
+function renderCalendario(){
+  const year=cursor.getFullYear(), month=cursor.getMonth();
+  const firstDow = new Date(year,month,1).getDay();
+  const daysInMonth = new Date(year,month+1,0).getDate();
+  const aprobados = STATE.events.filter(e=>e.estado==='aprobado').sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  const byDate = {};
+  aprobados.forEach(e => { (byDate[e.fecha]=byDate[e.fecha]||[]).push(e); });
+
+  let cells = '';
+  DIAS_SEM.forEach(d => { cells += '<div class="dow">'+d+'</div>'; });
+  for(let i=0;i<firstDow;i++) cells += '<div class="cell empty2"></div>';
+  for(let d=1; d<=daysInMonth; d++){
+    const iso = year+'-'+p(month+1)+'-'+p(d);
+    const evs = byDate[iso]||[];
+    cells += '<div class="cell"><div class="daynum">'+d+'</div>' +
+      evs.slice(0,2).map(e=>'<div class="dot">'+esc(e.titulo)+'</div>').join('') +
+      (evs.length>2 ? '<div class="dot">+'+(evs.length-2)+'</div>' : '') + '</div>';
+  }
+
+  const proximos = aprobados.filter(e=>e.fecha>=todayIso()).slice(0,12);
+  const canManage = STATE.role==='revisor' || STATE.role==='aprobador';
+  let lista = proximos.length===0 ? '<div class="empty">Todavía no hay eventos confirmados próximamente.</div>' :
+    proximos.map(e => {
+      const cancelBlock = ui.openId===e.id ? (
+        '<div class="inline"><textarea data-cancel-note="'+e.id+'" placeholder="Motivo (opcional)"></textarea>' +
+        '<div class="row-actions"><button class="btn danger" data-cancelar="'+e.id+'">Cancelar evento</button>' +
+        '<button class="btn ghost" data-cerrar-cancelar="1">Cerrar</button></div></div>'
+      ) : (canManage ? '<button class="btn ghost" style="padding:2px 0;font-size:12px;" data-abrir-cancelar="'+e.id+'">Cancelar este evento</button>' : '');
+      return '<div class="item"><div style="font-weight:600;font-size:14px;">'+esc(e.titulo)+'</div>' +
+        '<div class="meta">'+fmtShort(e.fecha)+(e.lugar?' · '+esc(e.lugar):'')+(e.horaInicio?' · '+e.horaInicio+(e.horaFin?'–'+e.horaFin:''):'')+'</div>' +
+        cancelBlock + '</div>';
+    }).join('');
+
+  return '<div class="navrow"><button class="navbtn" data-mes="-1">‹</button>' +
+    '<span style="font-family:\'Source Serif 4\',serif;font-weight:600;">'+MESES[month]+' '+year+'</span>' +
+    '<button class="navbtn" data-mes="1">›</button></div>' +
+    '<div class="grid">'+cells+'</div>' +
+    '<div class="card" style="margin-top:14px;"><p class="eyebrow">Próximos eventos</p>'+lista+'</div>';
+}
+
+function renderSolicitar(){
+  const places = STATE.places.map(pl=>'<option value="'+esc(pl)+'">'+esc(pl)+'</option>').join('');
+  return '<div class="card"><p class="eyebrow">Pedir un espacio o fecha</p>' +
+    '<div class="field"><label>Tu nombre</label><input id="f_nombre"></div>' +
+    '<div class="field"><label>¿Qué evento es?</label><input id="f_titulo" placeholder="Ej: Acto del Día de la Bandera"></div>' +
+    '<div class="row2"><div class="field"><label>Fecha</label><input type="date" id="f_fecha" min="'+todayIso()+'"></div>' +
+    '<div class="field"><label>Lugar</label><select id="f_lugar">'+places+'</select></div></div>' +
+    '<div class="row2"><div class="field"><label>Inicio (opcional)</label><input type="time" id="f_inicio"></div>' +
+    '<div class="field"><label>Fin (opcional)</label><input type="time" id="f_fin"></div></div>' +
+    '<div class="field"><label>Notas (opcional)</label><textarea id="f_nota"></textarea></div>' +
+    '<button class="btn primary" id="btn-enviar-solicitud">Enviar solicitud</button>' +
+    '<p style="font-size:12px;color:var(--ink-soft);margin-top:10px;">Primero la revisa el equipo y después pasa a aprobación final.</p></div>';
+}
+
+function renderMis(){
+  const mias = STATE.events.filter(e=>e.solicitadoPorEmail===STATE.email).sort((a,b)=>(b.creadoEl||'').localeCompare(a.creadoEl||''));
+  if(mias.length===0) return '<div class="card"><div class="empty">Todavía no mandaste ninguna solicitud.</div></div>';
+  return '<div class="card"><p class="eyebrow">Tus solicitudes</p>' + mias.map(e =>
+    '<div class="item"><div style="display:flex;justify-content:space-between;gap:8px;"><div style="font-weight:600;font-size:14px;">'+esc(e.titulo)+'</div><span class="badge '+e.estado+'">'+labelEstado(e.estado)+'</span></div>' +
+    '<div class="meta">'+fmtShort(e.fecha)+(e.lugar?' · '+esc(e.lugar):'')+'</div>' +
+    (e.estado==='rechazado' && e.motivoRechazo ? '<div style="font-size:12px;color:var(--rejected);margin-top:4px;">Motivo: '+esc(e.motivoRechazo)+'</div>' : '') +
+    '</div>'
+  ).join('') + '</div>';
+}
+
+function renderRevisar(){
+  const items = STATE.events.filter(e=>e.estado==='revision').sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  if(items.length===0) return '<div class="card"><div class="empty">No hay solicitudes por revisar.</div></div>';
+  return '<div class="card"><p class="eyebrow">Por revisar</p>' + items.map(e => {
+    let block;
+    if(ui.rejectId===e.id){
+      block = '<div class="inline"><textarea data-motivo-rev="'+e.id+'" placeholder="Motivo del rechazo"></textarea>' +
+        '<div class="row-actions"><button class="btn danger" data-confirmar-rechazo="'+e.id+'">Confirmar rechazo</button>' +
+        '<button class="btn ghost" data-cancelar-rechazo="1">Cancelar</button></div></div>';
+    } else if(ui.editId===e.id){
+      block = '<div class="inline">' +
+        '<div class="row2"><div class="field"><label>Fecha</label><input type="date" data-ed-fecha="'+e.id+'" value="'+e.fecha+'"></div>' +
+        '<div class="field"><label>Lugar</label><select data-ed-lugar="'+e.id+'">'+STATE.places.map(pl=>'<option '+(pl===e.lugar?'selected':'')+'>'+esc(pl)+'</option>').join('')+'</select></div></div>' +
+        '<div class="row2"><div class="field"><label>Inicio</label><input type="time" data-ed-ini="'+e.id+'" value="'+(e.horaInicio||'')+'"></div>' +
+        '<div class="field"><label>Fin</label><input type="time" data-ed-fin="'+e.id+'" value="'+(e.horaFin||'')+'"></div></div>' +
+        '<div class="row-actions"><button class="btn primary" data-guardar-edicion="'+e.id+'">Guardar</button>' +
+        '<button class="btn ghost" data-cancelar-edicion="1">Cancelar</button></div></div>';
+    } else {
+      block = '<div class="row-actions"><button class="btn primary" data-pasar-aprobacion="'+e.id+'">Pasar a aprobación</button>' +
+        '<button class="btn" data-abrir-edicion="'+e.id+'">Editar</button>' +
+        '<button class="btn danger" data-abrir-rechazo="'+e.id+'">Rechazar</button></div>';
+    }
+    return '<div class="item"><div style="font-weight:600;font-size:14.5px;">'+esc(e.titulo)+'</div>' +
+      '<div class="meta">'+fmtShort(e.fecha)+(e.lugar?' · '+esc(e.lugar):'')+(e.horaInicio?' · '+e.horaInicio+(e.horaFin?'–'+e.horaFin:''):'')+' · '+esc(e.solicitadoPorNombre)+'</div>' +
+      (e.nota ? '<div style="font-size:12.5px;color:var(--ink-soft);margin-top:5px;">"'+esc(e.nota)+'"</div>' : '') +
+      block + '</div>';
+  }).join('') + '</div>';
+}
+
+function renderAprobar(){
+  const items = STATE.events.filter(e=>e.estado==='aprobacion').sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  if(items.length===0) return '<div class="card"><div class="empty">No hay solicitudes por aprobar.</div></div>';
+  return '<div class="card"><p class="eyebrow">Por aprobar</p>' + items.map(e => {
+    let block;
+    if(ui.rejectId===e.id){
+      block = '<div class="inline"><textarea data-motivo-apr="'+e.id+'" placeholder="Motivo del rechazo"></textarea>' +
+        '<div class="row-actions"><button class="btn danger" data-confirmar-rechazo-apr="'+e.id+'">Confirmar rechazo</button>' +
+        '<button class="btn ghost" data-cancelar-rechazo="1">Cancelar</button></div></div>';
+    } else {
+      block = '<div class="row-actions"><button class="btn primary" data-aprobar="'+e.id+'">Aprobar</button>' +
+        '<button class="btn danger" data-abrir-rechazo-apr="'+e.id+'">Rechazar</button></div>';
+    }
+    return '<div class="item"><div style="font-weight:600;font-size:14.5px;">'+esc(e.titulo)+'</div>' +
+      '<div class="meta">'+fmtShort(e.fecha)+(e.lugar?' · '+esc(e.lugar):'')+(e.horaInicio?' · '+e.horaInicio+(e.horaFin?'–'+e.horaFin:''):'')+' · '+esc(e.solicitadoPorNombre)+'</div>' +
+      (e.notaRevision ? '<div style="font-size:12.5px;color:var(--ink-soft);margin-top:5px;">Nota del revisor: '+esc(e.notaRevision)+'</div>' : '') +
+      block + '</div>';
+  }).join('') + '</div>';
+}
+
+function renderRecordatorio(){
+  const proximos = STATE.events.filter(e=>e.estado==='aprobado' && e.fecha>=todayIso()).sort((a,b)=>a.fecha.localeCompare(b.fecha)).slice(0,10);
+  const msg = proximos.length===0 ? 'No hay eventos confirmados próximamente.' : 'Próximos eventos del colegio:\n\n' +
+    proximos.map((e,i)=> (i+1)+'. '+fmtLong(e.fecha)+(e.horaInicio?', '+e.horaInicio+(e.horaFin?' a '+e.horaFin:'')+' hs':'')+': '+e.titulo+(e.lugar?' — '+e.lugar:'')).join('\n');
+  window.__msg = msg;
+  return '<div class="notice ok">El mail de los lunes lo manda un script de Google aparte, leyendo directo de la base de datos — no hace falta abrir esta app.</div>' +
+    '<div class="card"><p class="eyebrow">Vista previa (próximos '+proximos.length+')</p><div class="msgbox">'+esc(msg)+'</div>' +
+    '<div class="row-actions"><button class="btn" id="btn-copiar">Copiar texto</button>' +
+    '<button class="btn" id="btn-whatsapp">Enviar por WhatsApp ahora</button></div></div>';
+}
+
+/* ---------- handlers dinámicos (delegación simple tras cada render) ---------- */
+function wireDynamicHandlers(){
+  const app = document.getElementById('app');
+
+  const on = (sel, evt, fn) => app.querySelectorAll(sel).forEach(el => el.addEventListener(evt, fn));
+
+  on('[data-mes]', 'click', (e) => {
+    const delta = parseInt(e.target.dataset.mes, 10);
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth()+delta, 1);
+    render();
+  });
+  on('[data-abrir-cancelar]', 'click', (e) => { ui.openId = e.target.dataset.abrirCancelar; render(); });
+  on('[data-cerrar-cancelar]', 'click', () => { ui.openId = null; render(); });
+  on('[data-cancelar]', 'click', async (e) => {
+    const id = e.target.dataset.cancelar;
+    const nota = app.querySelector('[data-cancel-note="'+id+'"]');
+    await cancelarAprobado(id, nota ? nota.value.trim() : '');
+    notice = {kind:'ok', text:'Evento cancelado.'}; ui.openId=null; render();
+  });
+
+  const btnEnviar = document.getElementById('btn-enviar-solicitud');
+  if(btnEnviar) btnEnviar.onclick = async () => {
+    const payload = {
+      nombre: document.getElementById('f_nombre').value.trim(),
+      titulo: document.getElementById('f_titulo').value.trim(),
+      fecha: document.getElementById('f_fecha').value,
+      lugar: document.getElementById('f_lugar').value,
+      horaInicio: document.getElementById('f_inicio').value,
+      horaFin: document.getElementById('f_fin').value,
+      nota: document.getElementById('f_nota').value.trim(),
+    };
+    if(!payload.nombre || !payload.titulo || !payload.fecha){
+      notice = {kind:'err', text:'Completá al menos tu nombre, el evento y la fecha.'}; render(); return;
+    }
+    const solicitadoPorNombre = payload.nombre; delete payload.nombre;
+    try{
+      const conflictos = await crearSolicitud({ ...payload, solicitadoPorNombre });
+      notice = conflictos.length
+        ? {kind:'warn', text:'Ojo: ya hay un evento confirmado ese día en '+payload.lugar+' ('+conflictos[0].titulo+'). Igual mandé la solicitud.'}
+        : {kind:'ok', text:'Solicitud enviada. Vas a ver el estado en "Mis solicitudes".'};
+      setView('mis');
+    }catch(err){ notice={kind:'err', text:err.message}; render(); }
+  };
+
+  on('[data-pasar-aprobacion]', 'click', async (e) => {
+    await pasarAAprobacion(e.target.dataset.pasarAprobacion, '');
+    notice = {kind:'ok', text:'Pasó a aprobación.'}; render();
+  });
+  on('[data-abrir-edicion]', 'click', (e) => { ui.editId = e.target.dataset.abrirEdicion; render(); });
+  on('[data-cancelar-edicion]', 'click', () => { ui.editId = null; render(); });
+  on('[data-guardar-edicion]', 'click', async (e) => {
+    const id = e.target.dataset.guardarEdicion;
+    const patch = {
+      fecha: app.querySelector('[data-ed-fecha="'+id+'"]').value,
+      lugar: app.querySelector('[data-ed-lugar="'+id+'"]').value,
+      horaInicio: app.querySelector('[data-ed-ini="'+id+'"]').value,
+      horaFin: app.querySelector('[data-ed-fin="'+id+'"]').value,
+    };
+    await editarSolicitud(id, patch);
+    ui.editId = null; render();
+  });
+  on('[data-abrir-rechazo]', 'click', (e) => { ui.rejectId = e.target.dataset.abrirRechazo; render(); });
+  on('[data-abrir-rechazo-apr]', 'click', (e) => { ui.rejectId = e.target.dataset.abrirRechazoApr; render(); });
+  on('[data-cancelar-rechazo]', 'click', () => { ui.rejectId = null; render(); });
+  on('[data-confirmar-rechazo]', 'click', async (e) => {
+    const id = e.target.dataset.confirmarRechazo;
+    const motivo = app.querySelector('[data-motivo-rev="'+id+'"]').value.trim();
+    await rechazarEvento(id, motivo);
+    notice = {kind:'ok', text:'Solicitud rechazada.'}; ui.rejectId=null; render();
+  });
+  on('[data-confirmar-rechazo-apr]', 'click', async (e) => {
+    const id = e.target.dataset.confirmarRechazoApr;
+    const motivo = app.querySelector('[data-motivo-apr="'+id+'"]').value.trim();
+    await rechazarEvento(id, motivo);
+    notice = {kind:'ok', text:'Solicitud rechazada.'}; ui.rejectId=null; render();
+  });
+  on('[data-aprobar]', 'click', async (e) => {
+    await aprobarEvento(e.target.dataset.aprobar);
+    notice = {kind:'ok', text:'Evento confirmado.'}; render();
+  });
+
+  const btnCopiar = document.getElementById('btn-copiar');
+  if(btnCopiar) btnCopiar.onclick = () => { navigator.clipboard && navigator.clipboard.writeText(window.__msg); notice={kind:'ok',text:'Copiado.'}; render(); };
+  const btnWa = document.getElementById('btn-whatsapp');
+  if(btnWa) btnWa.onclick = () => window.open('https://wa.me/?text='+encodeURIComponent(window.__msg), '_blank');
+}
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+
+render();
+</script>
+</body>
+</html>
