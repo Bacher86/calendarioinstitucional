@@ -63,14 +63,14 @@
   .inline{ background:var(--bone); border:1px solid var(--line); border-radius:10px; padding:11px; margin-top:9px; }
   .row-actions{ display:flex; gap:8px; flex-wrap:wrap; margin-top:9px; }
   .grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:12px; overflow:hidden; }
-  .dow{ background:#fff; font-size:10.5px; font-weight:700; color:var(--ink-soft); text-align:center; padding:6px 0; }
-  .cell{ background:#fff; min-height:48px; padding:4px; font-size:10px; }
+  .dow{ background:#fff; font-size:11.5px; font-weight:700; color:var(--ink-soft); text-align:center; padding:9px 0; }
+  .cell{ background:#fff; min-height:78px; padding:6px; font-size:11px; }
   .cell.empty2{ background:var(--bone); }
-  .daynum{ font-size:11.5px; font-weight:700; color:var(--ink-soft); }
-  .cell.today .daynum{ background:var(--marigold); color:var(--navy-deep); border-radius:6px; padding:0 5px; display:inline-block; }
-  .dot{ background:var(--moss-bg); color:var(--moss); border-radius:5px; padding:1px 4px; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; }
+  .daynum{ font-size:13.5px; font-weight:700; color:var(--ink-soft); }
+  .cell.today .daynum{ background:var(--marigold); color:var(--navy-deep); border-radius:6px; padding:0 6px; display:inline-block; }
+  .dot{ background:var(--moss-bg); color:var(--moss); border-radius:5px; padding:2px 5px; margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:600; font-size:11px; }
   .navrow{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
-  .navrow .month{ font-family:'Fraunces',serif; font-weight:600; font-size:19px; color:var(--ink); }
+  .navrow .month{ font-family:'Fraunces',serif; font-weight:600; font-size:22px; color:var(--ink); }
   .navbtn{ background:#fff; border:1.5px solid var(--line); border-radius:9px; width:30px; height:30px; font-size:15px; color:var(--navy); }
   .msgbox{ font-family:'Manrope',monospace; font-size:12.5px; white-space:pre-wrap; background:var(--bone); border:1px solid var(--line); border-radius:10px; padding:12px; line-height:1.55; }
   .center{ text-align:center; padding:8px 4px; }
@@ -118,12 +118,12 @@ const auth = getAuth(fbApp);
 const db = getFirestore(fbApp);
 // Acceso simple: mail institucional + contraseña compartida (sin depender
 // de Google ni del Workspace de la escuela, que bloqueaba el login).
-const CLAVE_ACCESO = 'moldes2440';
+const CLAVE_ACCESO = 'MOLDES2440';
 const LS_EMAIL = 'calendario_email';
 
 // TODO: pegá acá tu VAPID key (Firebase console > Configuración del proyecto >
 // Cloud Messaging > Certificados push web > Generar par de claves).
-const VAPID_KEY = "BEG0sJhX9hHo58MAwqt285KI5xJrj-K8KKGhEdHm_9FI51UUTw2wrhLH_f6w8gNLJQsbzQ7Hur-lx66A38leLsY";
+const VAPID_KEY = "PEGAR_VAPID_KEY_ACA";
 
 const DEFAULT_PLACES = ['Auditorio','Patio','SUM','Biblioteca','Aula 1','Aula 2','Aula 3','Sala de profesores'];
 const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
@@ -358,8 +358,8 @@ function renderCalendario(){
     const evs = byDate[iso]||[];
     const esHoy = iso===todayIso();
     cells += '<div class="cell'+(esHoy?' today':'')+'"><div class="daynum">'+d+'</div>' +
-      evs.slice(0,2).map(e=>'<div class="dot">'+esc(e.titulo)+'</div>').join('') +
-      (evs.length>2 ? '<div class="dot">+'+(evs.length-2)+'</div>' : '') + '</div>';
+      evs.slice(0,3).map(e=>'<div class="dot">'+esc(e.titulo)+'</div>').join('') +
+      (evs.length>3 ? '<div class="dot">+'+(evs.length-3)+' más</div>' : '') + '</div>';
   }
 
   const proximos = aprobados.filter(e=>e.fecha>=todayIso()).slice(0,12);
@@ -384,22 +384,11 @@ function renderCalendario(){
 }
 
 function renderSolicitar(){
-  const places = STATE.places.map(pl=>'<option value="'+esc(pl)+'">'+esc(pl)+'</option>').join('');
   return '<a class="btn-form" href="https://forms.gle/3fndgnxAjUAt3qD9A" target="_blank" rel="noopener">' +
       '<span class="btn-form-label">Pedir un espacio</span>' +
       '<span class="btn-form-sub">Abrir el formulario</span>' +
     '</a>' +
-    '<div class="divider"><span>o completá acá mismo</span></div>' +
-    '<div class="card"><p class="eyebrow">Pedir un espacio o fecha</p>' +
-    '<div class="field"><label>Tu nombre</label><input id="f_nombre"></div>' +
-    '<div class="field"><label>¿Qué evento es?</label><input id="f_titulo" placeholder="Ej: Acto del Día de la Bandera"></div>' +
-    '<div class="row2"><div class="field"><label>Fecha</label><input type="date" id="f_fecha" min="'+todayIso()+'"></div>' +
-    '<div class="field"><label>Lugar</label><select id="f_lugar">'+places+'</select></div></div>' +
-    '<div class="row2"><div class="field"><label>Inicio (opcional)</label><input type="time" id="f_inicio"></div>' +
-    '<div class="field"><label>Fin (opcional)</label><input type="time" id="f_fin"></div></div>' +
-    '<div class="field"><label>Notas (opcional)</label><textarea id="f_nota"></textarea></div>' +
-    '<button class="btn primary" id="btn-enviar-solicitud">Enviar solicitud</button>' +
-    '<p style="font-size:12px;color:var(--ink-soft);margin-top:10px;">Primero la revisa el equipo y después pasa a aprobación final.</p></div>';
+    '<p style="font-size:13px;color:var(--ink-soft);margin-top:2px;">Se abre el formulario del colegio. Una vez que lo completes, tu solicitud va a aparecer en "Mis solicitudes" cuando el equipo la cargue para revisión.</p>';
 }
 
 function renderMis(){
@@ -492,30 +481,6 @@ function wireDynamicHandlers(){
     await cancelarAprobado(id, nota ? nota.value.trim() : '');
     notice = {kind:'ok', text:'Evento cancelado.'}; ui.openId=null; render();
   });
-
-  const btnEnviar = document.getElementById('btn-enviar-solicitud');
-  if(btnEnviar) btnEnviar.onclick = async () => {
-    const payload = {
-      nombre: document.getElementById('f_nombre').value.trim(),
-      titulo: document.getElementById('f_titulo').value.trim(),
-      fecha: document.getElementById('f_fecha').value,
-      lugar: document.getElementById('f_lugar').value,
-      horaInicio: document.getElementById('f_inicio').value,
-      horaFin: document.getElementById('f_fin').value,
-      nota: document.getElementById('f_nota').value.trim(),
-    };
-    if(!payload.nombre || !payload.titulo || !payload.fecha){
-      notice = {kind:'err', text:'Completá al menos tu nombre, el evento y la fecha.'}; render(); return;
-    }
-    const solicitadoPorNombre = payload.nombre; delete payload.nombre;
-    try{
-      const conflictos = await crearSolicitud({ ...payload, solicitadoPorNombre });
-      notice = conflictos.length
-        ? {kind:'warn', text:'Ojo: ya hay un evento confirmado ese día en '+payload.lugar+' ('+conflictos[0].titulo+'). Igual mandé la solicitud.'}
-        : {kind:'ok', text:'Solicitud enviada. Vas a ver el estado en "Mis solicitudes".'};
-      setView('mis');
-    }catch(err){ notice={kind:'err', text:err.message}; render(); }
-  };
 
   on('[data-pasar-aprobacion]', 'click', async (e) => {
     await pasarAAprobacion(e.target.dataset.pasarAprobacion, '');
