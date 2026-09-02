@@ -118,7 +118,7 @@ const auth = getAuth(fbApp);
 const db = getFirestore(fbApp);
 // Acceso simple: mail institucional + contraseña compartida (sin depender
 // de Google ni del Workspace de la escuela, que bloqueaba el login).
-const CLAVE_ACCESO = 'MOLDES2440';
+const CLAVE_ACCESO = 'moldes2440';
 const LS_EMAIL = 'calendario_email';
 
 // TODO: pegá acá tu VAPID key (Firebase console > Configuración del proyecto >
@@ -128,7 +128,7 @@ const VAPID_KEY = "PEGAR_VAPID_KEY_ACA";
 const DEFAULT_PLACES = ['Auditorio','Patio','SUM','Biblioteca','Aula 1','Aula 2','Aula 3','Sala de profesores'];
 const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
 const DIAS_SEM = ['dom','lun','mar','mié','jue','vie','sáb'];
-const ROLE_LABEL = { miembro:'Miembro', revisor:'Revisor', aprobador:'Aprobador' };
+const ROLE_LABEL = { miembro:'Miembro', revisor:'Revisor', aprobador:'Aprobador', ambos:'Revisor y aprobador' };
 
 let STATE = { user:null, email:'', role:'miembro', places:DEFAULT_PLACES, events:[] };
 let view = 'calendario';
@@ -286,9 +286,9 @@ function setView(v){ view=v; ui={openId:null,rejectId:null,editId:null,cancelRea
 
 function tabsFor(role){
   const t = [{key:'calendario', label:'Calendario'}, {key:'solicitar', label:'Solicitar'}, {key:'mis', label:'Mis solicitudes'}];
-  if(role==='revisor') t.push({key:'revisar', label:'Por revisar'});
-  if(role==='aprobador') t.push({key:'aprobar', label:'Por aprobar'});
-  if(role==='revisor' || role==='aprobador') t.push({key:'recordatorio', label:'Recordatorio'});
+  if(role==='revisor' || role==='ambos') t.push({key:'revisar', label:'Por revisar'});
+  if(role==='aprobador' || role==='ambos') t.push({key:'aprobar', label:'Por aprobar'});
+  if(role==='revisor' || role==='aprobador' || role==='ambos') t.push({key:'recordatorio', label:'Recordatorio'});
   return t;
 }
 
